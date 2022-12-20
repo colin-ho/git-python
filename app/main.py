@@ -154,6 +154,8 @@ def main():
         lsTree()
     elif command == "write-tree":
         writeTree()
+    elif command == "commit-tree":
+        commitTree()
     else:
         raise RuntimeError(f"Unknown command #{command}")
 
