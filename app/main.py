@@ -27,6 +27,20 @@ def hashObject(file):
             f.write(zlib.compress(store))
         print(file_hash, end="")
 
+def lsTree(file_hash):
+    file_hash = sys.argv[-1]
+    file_path = f".git/objects/{file_hash[:2]}/{file_hash[2:]}"
+    with open(file_path, "rb") as f:
+        data = f.read()
+    raw_bytes = zlib.decompress(data)
+    raw_bytes_as_arr = raw_bytes.split(b"\x00")
+    files = []
+    for i in range(1, len(raw_bytes_as_arr) - 1):
+        filename = raw_bytes_as_arr[i].split(b" ")[-1]
+        files.append(filename)
+    for file in files:
+        print(file.decode())
+
 def main():
     command = sys.argv[1]
     if command == "init":
@@ -40,6 +54,8 @@ def main():
         catFile(sys.argv[-1])
     elif command == "hash-object":
         hashObject(sys.argv[-1])
+    elif command == "ls-tree":
+        lsTree(sys.argv[-1])
     else:
         raise RuntimeError(f"Unknown command #{command}")
 
