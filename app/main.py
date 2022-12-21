@@ -4,8 +4,9 @@ Entry point for my git clone.
 
 import sys
 import datetime
+from typing import Tuple, List, Dict
 
-from .git import (  # pylint: disable=relative-beyond-top-level
+from .git.git_plumbing import (  # pylint: disable=relative-beyond-top-level
     init,
     cat_file,
     ls_tree,
@@ -16,41 +17,40 @@ from .git import (  # pylint: disable=relative-beyond-top-level
     checkout,
 )
 
-
-def hardcoded_commit_params():
-    """
-    Returns tuple of commit parameters
-    """
-    author = "Papik Meli <papik@qlac.ch>"
-    committer = "Papik Meli <papik@qlac.ch>"
-    now = datetime.datetime.now()
-    timestamp_local = round(now.timestamp())
-    offset_seconds = now.astimezone().utcoffset().seconds
-    offset_hours = offset_seconds // 3600
-    offset_minutes = offset_seconds % 3600
-    timestamp_offset = f"{offset_hours:+03}{offset_minutes:02}"
-    timestamp = str(timestamp_local) + " " + timestamp_offset
-    return {"author": author, "committer": committer, "timestamp": timestamp}
-
-
-def parse_commit_params(args):
+def parse_commit_params(args: List[str]) -> List[str]:
     """
     Parse commit-tree parameters from CLI and other.
     """
-    params = ["-p", "-m"]
+    available_params = ["-p", "-m"]
     tree_sha = args[2]
     i = 3
     while i < len(args):
         param = args[i]
-        if param not in params:
+        if param not in available_params:
             raise RuntimeError(f"Unknown parameter {param} for `commit-tree`.")
-        para_val = args[i + 1]
+        param_val = args[i + 1]
         if param == "-p":
-            parent = para_val
+            parent = param_val
         if param == "-m":
-            message = para_val
+            message = param_val
         i += 2
-    return tree_sha, parent, message
+    
+    author = "Colin Ho <colin.ho99@gmail.com>"
+    committer = "Colin Ho <colin.ho99@gmail.com>"
+    dt = datetime.datetime.now(datetime.timezone.utc)
+    utc_time = dt.replace(tzinfo=datetime.timezone.utc)
+    utc_timestamp = utc_time.timestamp()
+
+    content = [
+        f"tree {tree_sha}",
+        f"parent {parent}",
+        f"author {author} {utc_timestamp}",
+        f"committer {committer} {utc_timestamp}",
+        f"",
+        message,
+        f"",
+    ]
+    return content
 
 
 def main():
@@ -83,19 +83,17 @@ def main():
         tree_sha = sys.argv[3]
         content = ls_tree(tree_sha)
         if opt == "--name-only":
-            print("\n".join([obj[1].decode() for obj in content]))
-            return
-        raise RuntimeError(f"Unknown parameter {opt} for `ls-tree`.")
+            for _, filename, _ in content:
+                print(filename.decode())
+        else:
+            raise RuntimeError(f"Unknown parameter {opt} for `ls-tree`.")
 
     elif command == "write-tree":
         tree_sha = write_tree(".")
         print(tree_sha)
 
     elif command == "commit-tree":
-        tree_sha, parent, message = parse_commit_params(sys.argv)
-        opts = hardcoded_commit_params()
-        opts["parent"] = parent
-        opts["message"] = message
+        opts = parse_commit_params(sys.argv)
         commit_sha = commit_tree(tree_sha, opts)
         print(commit_sha)
 
