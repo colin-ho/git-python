@@ -11,8 +11,9 @@ def query_refs(host: str, repo: str) -> bytes:
     """
     Request refs from repo at host.
     """
-    req = http.client.HTTPSConnection(host).request("GET", f"{repo}/info/refs?service=git-upload-pack")
-    response = req.getresponse()
+    conn = http.client.HTTPSConnection(host)
+    conn.request("GET", f"{repo}/info/refs?service=git-upload-pack")
+    response = conn.getresponse()
 
     if response.headers["Content-Type"] != f"application/x-git-upload-pack-advertisement":
         raise RuntimeError(f"Response from {host} for repo {repo} not valid.")
@@ -64,19 +65,18 @@ def query_pack(host: str, repo: str, refs: List[str]) -> bytes:
     """
     Request pack for refs.
     """
-    service = "upload-pack"
     connection = http.client.HTTPSConnection(host)
     headers = {"Content-Type": "application/x-git-upload-pack-request"}
 
     body = build_ref_request_body(refs)
     print(body)
 
-    connection.request("POST", f"{repo}/git-{service}", headers=headers, body=body)
+    connection.request("POST", f"{repo}/git-upload-pack", headers=headers, body=body)
     response = connection.getresponse()
 
     print(response.status)
     print(response.headers)
-    if response.headers["Content-Type"] != f"application/x-git-{service}-result":
+    if response.headers["Content-Type"] != f"application/x-git-upload-pack-result":
         raise RuntimeError(f"Response from {host} for repo {repo} not valid.")
 
     return response.read()
@@ -133,8 +133,10 @@ def parse_first_ref_line(packet: bytes) -> Tuple[str, str]:
     """
     Parse first line of refs: ref\\0opts
     """
-    ref_b = packet.split(b"\x00")[0]
-    return parse_ref(ref_b)
+    ref_b, opts_b = packet.split(b"\x00")
+    opts_str = opts_b.decode()
+    opts = opts_str.split(" ")
+    return parse_ref(ref_b), opts
 
 
 def parse_pack_resp(pack_resp: bytes) -> Tuple[bool, bytes]:
@@ -189,15 +191,17 @@ def download_pack(host: str, repo: str) -> Tuple[List, List]:
     """
     refs_data = query_refs(host, repo)
     packets = parse_packet_lines(refs_data)
-    first, _options = parse_first_ref_line(packets[1])
+    first, _ = parse_first_ref_line(packets[1])
     refs = [first]
     for packet in packets[2:]:
         refs.append(parse_ref(packet))
+
     want = set()
-    for sha, _path in refs:
+    for sha, _ in refs:
         want.add(sha)
     pack_resp = query_pack(host, repo, list(want))
     pack_ok, pack = parse_pack_resp(pack_resp)
+
     if not pack_ok:
         raise RuntimeError("Cannot parse pack.")
     return refs, pack
@@ -214,28 +218,3 @@ def parse_refs(refs_data) -> List[Tuple[str, str]]:
     for packet in packets[2:]:
         refs.append(parse_ref(packet))
     return refs
-
-
-def test():
-    """
-    Do some tests.
-    """
-    # refs_data = load_refs()
-    repo = "/remowxdx/AoC-2021"
-    # repo = "/alibaba/fastjson"
-    refs_data = query_refs("github.com", repo)
-    save_refs(refs_data)
-    refs = parse_refs(refs_data)
-    want = set()
-    for sha, _path in refs:
-        want.add(sha)
-    print(list(want))
-    pack_resp = query_pack("github.com", repo, list(want))
-    _ok, pack = parse_pack_resp(pack_resp)
-    save_pack(pack)
-    # pack = load_pack()
-    print(pack[:100])
-
-
-if __name__ == "__main__":
-    test()

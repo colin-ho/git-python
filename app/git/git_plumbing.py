@@ -110,26 +110,6 @@ def commit_tree(opts: List[str], repo_path: str = "") -> str:
     return commit_sha
 
 
-def write_ref(path: str, sha: str, repo_path: str):
-    """
-    Write reference in repo.
-    """
-    file_path = os.path.join(repo_path, ".git", path)
-    dirname = os.path.dirname(file_path)
-    if not os.path.exists(dirname):
-        os.makedirs(dirname)
-    with open(file_path, "w") as ref_file:
-        ref_file.write(sha)
-
-
-def write_refs(refs: Tuple[str, str], repo_path: str):
-    """
-    Write references in repo.
-    """
-    for sha, path in refs:
-        write_ref(path, sha, repo_path)
-
-
 def parse_size(stream: bytes, i: int) -> Tuple[int, int]:
     """
     Parse encoded size.

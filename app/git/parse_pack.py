@@ -118,18 +118,3 @@ def parse_pack(pack: bytes):
         raise RuntimeError("Pack not fully read.")
     # print(f"Pack fully parsed ({i} bytes).")
     return objects
-
-
-def test():
-    """
-    Do some tests.
-    """
-    pack = load_pack("pack")
-    print(pack[:100])
-    objects = parse_pack(pack)
-    print(objects[:10])
-    print("Found", len(objects), "objects.")
-
-
-if __name__ == "__main__":
-    test()
