@@ -4,8 +4,8 @@ import hashlib
 from typing import Tuple, List, Dict
 
 from .git_utils import * 
-from ..remote_repo import download_pack  # pylint: disable=relative-beyond-top-level
-from ..parse_pack import parse_pack  # pylint: disable=relative-beyond-top-level
+from .remote_repo import download_pack  # pylint: disable=relative-beyond-top-level
+from .parse_pack import parse_pack  # pylint: disable=relative-beyond-top-level
 
 def init(repo_path: str = ""):
     """
@@ -58,6 +58,34 @@ def ls_tree(tree_sha: str, repo_path: str = "") -> List[Tuple[bytes, bytes, str]
 
     return objects
 
+def find_objects(path: str, repo_path: str) -> Dict[str, Dict[str, str]]:
+    """
+    Build list of file/dir objects in path. Recurse on dirs.
+    """
+    objects = {}
+    with os.scandir(path) as dir_entries:
+        for dir_entry in dir_entries:
+            if ignore_path(dir_entry.name):
+                continue
+            if dir_entry.is_file():
+                blob_sha = hash_object(dir_entry.path, repo_path)
+                objects[dir_entry.name] = {
+                    "permissions" :  f"{dir_entry.stat().st_mode:o}",
+                    "filename" : dir_entry.name,
+                    "hash_bytes" : hash_str_to_bytes(blob_sha)
+                }
+            elif dir_entry.is_dir():
+                tree_sha = write_tree(dir_entry.path, os.path.join("..", repo_path))
+                objects[dir_entry.name] = {
+                    "permissions" :  f"{dir_entry.stat().st_mode:o}",
+                    "filename" : dir_entry.name,
+                    "hash_bytes" : hash_str_to_bytes(tree_sha)
+                }
+            else:
+                raise ValueError(
+                    f"Path {dir_entry.path} is neither file nor directory."
+                )
+    return objects
 
 def write_tree(path: str = "", repo_path: str = "") -> str:
     """
@@ -248,7 +276,7 @@ def clone(host: str, repo: str, repo_path: str) -> str:
     """
 
     os.makedirs(repo_path)
-    init(repo_path=repo_path)
+    init(repo_path)
 
     refs, pack = download_pack(host, repo)
 

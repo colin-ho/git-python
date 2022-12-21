@@ -11,12 +11,10 @@ def query_refs(host: str, repo: str) -> bytes:
     """
     Request refs from repo at host.
     """
-    service = "upload-pack"
-    connection = http.client.HTTPSConnection(host)
-    connection.request("GET", f"{repo}/info/refs?service=git-{service}")
-    response = connection.getresponse()
+    req = http.client.HTTPSConnection(host).request("GET", f"{repo}/info/refs?service=git-upload-pack")
+    response = req.getresponse()
 
-    if response.headers["Content-Type"] != f"application/x-git-{service}-advertisement":
+    if response.headers["Content-Type"] != f"application/x-git-upload-pack-advertisement":
         raise RuntimeError(f"Response from {host} for repo {repo} not valid.")
 
     return response.read()
@@ -84,13 +82,13 @@ def query_pack(host: str, repo: str, refs: List[str]) -> bytes:
     return response.read()
 
 
-def parse_line_length(data: bytes, i: int) -> Tuple[int, int]:
+def parse_line_length(data: bytes, i: int) -> int:
     """
     Parse line length.
     XXXX: 4 bytes with hex chars
     """
     length = int.from_bytes(bytes.fromhex(data[i : i + 4].decode()), "big")
-    return 4, length
+    return length
 
 
 def parse_packet_line(data: bytes, i: int) -> Tuple[int, bytes]:
@@ -98,8 +96,8 @@ def parse_packet_line(data: bytes, i: int) -> Tuple[int, bytes]:
     Parse a packet line.
     XXXX<content>
     """
-    parsed_bytes, length = parse_line_length(data, i)
-    i += parsed_bytes
+    length = parse_line_length(data, i)
+    i += 4
     if length == 0:
         return 4, b""
     packet = data[i : i + length - 4]
@@ -115,25 +113,13 @@ def parse_packet_lines(data: bytes) -> List:
     while i < len(data):
         bytes_parsed, packet = parse_packet_line(data, i)
         i += bytes_parsed
-        if len(packet) == 0:
-            # Don't append empty packets
-            continue
-        packets.append(packet)
+        if packet:
+            packets.append(packet)
     return packets
 
 
-def parse_header_packet(packet: bytes) -> str:
-    """
-    Parse header line.
-    # service=git-<service>
-    """
-    if packet.startswith(b"# service=git-"):
-        return packet[14:].decode().strip("\n")
-    raise RuntimeError("Invalid header for refs.")
-
-
 def parse_ref(ref_b: bytes) -> Tuple[str, str]:
-    """
+    """"
     Parse a ref.
     """
     ref = ref_b.decode().strip("\n")
@@ -143,14 +129,12 @@ def parse_ref(ref_b: bytes) -> Tuple[str, str]:
     raise ValueError(f"Malformed ref.")
 
 
-def parse_first_ref_line(packet: bytes) -> Tuple[Tuple[str, str], List[str]]:
+def parse_first_ref_line(packet: bytes) -> Tuple[str, str]:
     """
     Parse first line of refs: ref\\0opts
     """
-    ref_b, opts_b = packet.split(b"\x00")
-    opts_str = opts_b.decode()
-    opts = opts_str.split(" ")
-    return parse_ref(ref_b), opts
+    ref_b = packet.split(b"\x00")[0]
+    return parse_ref(ref_b)
 
 
 def parse_pack_resp(pack_resp: bytes) -> Tuple[bool, bytes]:
@@ -205,8 +189,6 @@ def download_pack(host: str, repo: str) -> Tuple[List, List]:
     """
     refs_data = query_refs(host, repo)
     packets = parse_packet_lines(refs_data)
-    header = parse_header_packet(packets[0])
-    print(header)
     first, _options = parse_first_ref_line(packets[1])
     refs = [first]
     for packet in packets[2:]:
@@ -226,9 +208,6 @@ def parse_refs(refs_data) -> List[Tuple[str, str]]:
     Parse refs data from host to list of refs.
     """
     packets = parse_packet_lines(refs_data)
-    header = parse_header_packet(packets[0])
-    print(header)
-
     first, _options = parse_first_ref_line(packets[1])
 
     refs = [first]

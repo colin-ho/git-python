@@ -2,8 +2,7 @@ import os
 import zlib
 import hashlib
 
-from typing import Tuple, List, Dict
-from .git_plumbing import hash_object, write_tree
+from typing import Tuple, Dict
 
 def hash_bytes_to_str(hash_bytes: bytes) -> str:
     """
@@ -94,36 +93,6 @@ def ignore_path(path: str) -> bool:
     if path.startswith("."):
         return True
     return False
-
-
-def find_objects(path: str, repo_path: str) -> Dict[str, Dict[str, str]]:
-    """
-    Build list of file/dir objects in path. Recurse on dirs.
-    """
-    objects = {}
-    with os.scandir(path) as dir_entries:
-        for dir_entry in dir_entries:
-            if ignore_path(dir_entry.name):
-                continue
-            if dir_entry.is_file():
-                blob_sha = hash_object(dir_entry.path, repo_path)
-                objects[dir_entry.name] = {
-                    "permissions" :  f"{dir_entry.stat().st_mode:o}",
-                    "filename" : dir_entry.name,
-                    "hash_bytes" : hash_str_to_bytes(blob_sha)
-                }
-            elif dir_entry.is_dir():
-                tree_sha = write_tree(dir_entry.path, os.path.join("..", repo_path))
-                objects[dir_entry.name] = {
-                    "permissions" :  f"{dir_entry.stat().st_mode:o}",
-                    "filename" : dir_entry.name,
-                    "hash_bytes" : hash_str_to_bytes(tree_sha)
-                }
-            else:
-                raise ValueError(
-                    f"Path {dir_entry.path} is neither file nor directory."
-                )
-    return objects
 
 
 def build_tree_object(objects: Dict[str, Tuple[str, str, bytes]]) -> Tuple[str, bytes]:

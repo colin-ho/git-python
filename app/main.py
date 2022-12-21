@@ -94,14 +94,13 @@ def main():
 
     elif command == "commit-tree":
         opts = parse_commit_params(sys.argv)
-        commit_sha = commit_tree(tree_sha, opts)
+        commit_sha = commit_tree(opts)
         print(commit_sha)
 
     elif command == "clone":
         url = sys.argv[2]
         directory = sys.argv[3]
-        host_repo = url[8:]
-        host, repo = host_repo.split("/", 1)
+        host, repo = url.split("https://")[1].split("/", 1)
         repo = "/" + repo
         clone(host, repo, directory)
         checkout("HEAD", directory, directory)
